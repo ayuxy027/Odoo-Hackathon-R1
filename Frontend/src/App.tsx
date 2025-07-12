@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Home from './screens/Home';
-// import AskQuestion from './screens/AskQuestion';
-// import QuestionDetail from './screens/QuestionDetail';
+import AskQuestion from './screens/ AskQuestion';
+import QuestionDetail from './screens/QuestionDetail';
 
 // Types
 type Screen = 'home' | 'ask' | 'questionDetail';
@@ -63,12 +63,12 @@ const App: React.FC = () => {
             }}
           />
         )}
-        {/* {currentScreen === 'ask' && (
+        {currentScreen === 'ask' && (
           <AskQuestion navigate={navigateTo} />
         )}
         {currentScreen === 'questionDetail' && selectedQuestionId !== null && (
           <QuestionDetail questionId={selectedQuestionId} navigate={navigateTo} />
-        )} */}
+        )}
       </main>
     </div>
   );
