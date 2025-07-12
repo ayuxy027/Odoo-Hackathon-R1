@@ -113,6 +113,14 @@ class UserService {
   static createUser(userData) {
     try {
       const { username, password, role = 'user' } = userData;
+      // Validate role
+      const allowedRoles = ['guest','user','admin'];
+      if (!allowedRoles.includes(role)) {
+        return {
+          success: false,
+          message: 'Invalid role. Allowed roles: guest, user, admin'
+        };
+      }
       
       // Check if user already exists
       const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
