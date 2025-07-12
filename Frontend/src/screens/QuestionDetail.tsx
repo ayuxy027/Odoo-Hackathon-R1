@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { questionService, Question } from '../services/questionService';
+import { answerService, Answer } from '../services/answerService';
+import { voteService } from '../services/voteService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
   questionId: number;
@@ -10,244 +14,157 @@ interface VoteState {
   answerVotes: { [key: number]: 'up' | 'down' | null };
 }
 
-interface Question {
-  id: number;
-  title: string;
-  description: string;
-  tags: string[];
-  votes: number;
-  answers: number;
-  views: number;
-  author: string;
-  datePosted: string;
-  fullContent: string;
-}
-
-interface Answer {
-  id: number;
-  content: string;
-  author: string;
-  votes: number;
-  datePosted: string;
-  isAccepted: boolean;
-}
-
 const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
+  const { user, isAuthenticated } = useAuth();
+  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [newAnswer, setNewAnswer] = useState('');
   const [showAnswerForm, setShowAnswerForm] = useState(false);
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [voteState, setVoteState] = useState<VoteState>({
     questionVote: null,
     answerVotes: {}
   });
-  const [questionVotes, setQuestionVotes] = useState<{ [key: number]: number }>({});
-  const [answerVoteCounts, setAnswerVoteCounts] = useState<{ [key: number]: number }>({});
 
-  // Dummy question data - in a real app, this would come from an API or state management
-  const dummyQuestions: Question[] = [
-    {
-      id: 1,
-      title: "How to implement React hooks with TypeScript?",
-      description: "I'm trying to use useState and useEffect with TypeScript but getting type errors. What's the best approach for typing these hooks?",
-      tags: ["react", "typescript", "hooks"],
-      votes: 15,
-      answers: 3,
-      views: 234,
-      author: "dev_master",
-      datePosted: "2 hours ago",
-      fullContent: "I'm working on a React project with TypeScript and I'm having trouble with proper typing for hooks. Specifically, I'm getting errors when trying to use useState with complex objects and useEffect with async functions. Here's what I've tried so far:\n\n```typescript\nconst [user, setUser] = useState(null);\nconst [loading, setLoading] = useState(false);\n\nuseEffect(async () => {\n  const data = await fetchUser();\n  setUser(data);\n}, []);\n```\n\nThis gives me type errors and I'm not sure how to fix them properly. What's the correct way to handle this?"
-    },
-    {
-      id: 2,
-      title: "Best practices for API error handling in JavaScript",
-      description: "What are some recommended patterns for handling API errors in modern JavaScript applications? Should I use try-catch or promise chains?",
-      tags: ["javascript", "api", "error-handling", "best-practices"],
-      votes: 8,
-      answers: 2,
-      views: 156,
-      author: "code_ninja",
-      datePosted: "5 hours ago",
-      fullContent: "I'm building a JavaScript application that makes multiple API calls and I'm struggling with consistent error handling. I've seen different approaches like try-catch blocks, promise chains with .catch(), and even custom error handling middleware. What's the best approach for handling different types of errors (network errors, HTTP errors, validation errors) in a clean and maintainable way?"
-    },
-    {
-      id: 3,
-      title: "CSS Grid vs Flexbox: When to use which?",
-      description: "I'm confused about when to use CSS Grid versus Flexbox for layout. Can someone explain the key differences and use cases?",
-      tags: ["css", "layout", "grid", "flexbox"],
-      votes: 22,
-      answers: 5,
-      views: 445,
-      author: "frontend_guru",
-      datePosted: "1 day ago",
-      fullContent: "I keep hearing about CSS Grid and Flexbox but I'm not clear on when to use each one. They seem to overlap in functionality, and I often find myself choosing one arbitrarily. Can someone provide clear guidelines on:\n\n1. When to use CSS Grid vs Flexbox\n2. What are the strengths of each approach\n3. Are there cases where they work well together\n4. Performance considerations\n\nI'd appreciate some practical examples to illustrate the differences."
-    },
-    {
-      id: 4,
-      title: "PostgreSQL query optimization for large datasets",
-      description: "My queries are running slow on tables with millions of rows. What indexing strategies and query patterns should I consider?",
-      tags: ["postgresql", "database", "performance", "optimization"],
-      votes: 31,
-      answers: 7,
-      views: 789,
-      author: "db_wizard",
-      datePosted: "3 days ago",
-      fullContent: "I have a PostgreSQL database with several tables containing millions of rows. Some of my queries are taking 30+ seconds to complete, which is causing performance issues in my application. I've tried adding some basic indexes but I'm not seeing significant improvements. What are the best practices for:\n\n1. Choosing the right indexes\n2. Query optimization techniques\n3. Database design patterns for large datasets\n4. Monitoring and profiling tools\n\nAny specific PostgreSQL features I should be leveraging?"
+  useEffect(() => {
+    loadQuestionAndAnswers();
+  }, [questionId]);
+
+  const loadQuestionAndAnswers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [questionResponse, answersResponse] = await Promise.all([
+        questionService.getQuestionById(questionId),
+        answerService.getAnswersForQuestion(questionId, {
+          sortBy: 'votes',
+          sortOrder: 'desc'
+        })
+      ]);
+
+      if (questionResponse.success) {
+        setCurrentQuestion(questionResponse.question);
+        setVoteState(prev => ({
+          ...prev,
+          questionVote: questionResponse.question.userVote === 'upvote' ? 'up' :
+            questionResponse.question.userVote === 'downvote' ? 'down' : null
+        }));
+      }
+
+      if (answersResponse.success) {
+        setAnswers(answersResponse.answers);
+        // Initialize vote states for answers
+        const answerVotes: { [key: number]: 'up' | 'down' | null } = {};
+        answersResponse.answers.forEach(answer => {
+          answerVotes[answer.id] = answer.userVote === 'upvote' ? 'up' :
+            answer.userVote === 'downvote' ? 'down' : null;
+        });
+        setVoteState(prev => ({ ...prev, answerVotes }));
+      }
+    } catch (err) {
+      setError('Failed to load question and answers. Please try again.');
+      console.error('Error loading question:', err);
+    } finally {
+      setLoading(false);
     }
-  ];
-
-  // Dummy answers data
-  const dummyAnswers: { [key: number]: Answer[] } = {
-    1: [
-      {
-        id: 1,
-        content: "You need to provide proper type annotations for your hooks. For useState with complex objects, you should define an interface and pass it as a generic type parameter:\n\n```typescript\ninterface User {\n  id: number;\n  name: string;\n  email: string;\n}\n\nconst [user, setUser] = useState<User | null>(null);\nconst [loading, setLoading] = useState<boolean>(false);\n```\n\nFor useEffect with async functions, you can't make the effect function itself async, but you can define an async function inside it:\n\n```typescript\nuseEffect(() => {\n  const fetchData = async () => {\n    setLoading(true);\n    try {\n      const data = await fetchUser();\n      setUser(data);\n    } catch (error) {\n      console.error('Error fetching user:', error);\n    } finally {\n      setLoading(false);\n    }\n  };\n  \n  fetchData();\n}, []);\n```",
-        author: "typescript_pro",
-        votes: 12,
-        datePosted: "1 hour ago",
-        isAccepted: true
-      },
-      {
-        id: 2,
-        content: "Another approach is to use custom hooks for better organization and reusability:\n\n```typescript\nconst useUser = () => {\n  const [user, setUser] = useState<User | null>(null);\n  const [loading, setLoading] = useState(false);\n  const [error, setError] = useState<string | null>(null);\n\n  const fetchUser = async () => {\n    setLoading(true);\n    setError(null);\n    try {\n      const data = await api.getUser();\n      setUser(data);\n    } catch (err) {\n      setError(err.message);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  return { user, loading, error, fetchUser };\n};\n```\n\nThis pattern makes your components cleaner and your logic more testable.",
-        author: "react_expert",
-        votes: 8,
-        datePosted: "45 minutes ago",
-        isAccepted: false
-      },
-      {
-        id: 3,
-        content: "Don't forget about the React.StrictMode implications! In development mode, effects run twice which can cause issues with async operations. Make sure to handle cleanup properly:\n\n```typescript\nuseEffect(() => {\n  let isMounted = true;\n  \n  const fetchData = async () => {\n    const data = await fetchUser();\n    if (isMounted) {\n      setUser(data);\n    }\n  };\n  \n  fetchData();\n  \n  return () => {\n    isMounted = false;\n  };\n}, []);\n```",
-        author: "senior_dev",
-        votes: 5,
-        datePosted: "30 minutes ago",
-        isAccepted: false
-      }
-    ],
-    2: [
-      {
-        id: 1,
-        content: "I recommend using a combination of try-catch blocks with custom error classes for different error types:\n\n```javascript\nclass APIError extends Error {\n  constructor(message, status, code) {\n    super(message);\n    this.name = 'APIError';\n    this.status = status;\n    this.code = code;\n  }\n}\n\nconst apiCall = async (url) => {\n  try {\n    const response = await fetch(url);\n    \n    if (!response.ok) {\n      throw new APIError(\n        `HTTP error! status: ${response.status}`,\n        response.status,\n        'HTTP_ERROR'\n      );\n    }\n    \n    return await response.json();\n  } catch (error) {\n    if (error instanceof APIError) {\n      // Handle API-specific errors\n      console.error('API Error:', error.message);\n    } else {\n      // Handle network or other errors\n      console.error('Network Error:', error.message);\n    }\n    throw error;\n  }\n};\n```",
-        author: "error_handler",
-        votes: 6,
-        datePosted: "3 hours ago",
-        isAccepted: true
-      },
-      {
-        id: 2,
-        content: "For a more functional approach, you can create a Result type pattern:\n\n```javascript\nconst createResult = (success, data, error) => ({ success, data, error });\n\nconst safeApiCall = async (url) => {\n  try {\n    const response = await fetch(url);\n    \n    if (!response.ok) {\n      return createResult(false, null, {\n        type: 'HTTP_ERROR',\n        status: response.status,\n        message: `HTTP ${response.status}`\n      });\n    }\n    \n    const data = await response.json();\n    return createResult(true, data, null);\n  } catch (error) {\n    return createResult(false, null, {\n      type: 'NETWORK_ERROR',\n      message: error.message\n    });\n  }\n};\n\n// Usage\nconst result = await safeApiCall('/api/users');\nif (result.success) {\n  console.log(result.data);\n} else {\n  console.error(result.error);\n}\n```",
-        author: "functional_dev",
-        votes: 4,
-        datePosted: "2 hours ago",
-        isAccepted: false
-      }
-    ],
-    3: [
-      {
-        id: 1,
-        content: "Great question! Here's my rule of thumb:\n\n**Use Flexbox when:**\n- You need to align items in a single dimension (row OR column)\n- You want items to grow/shrink to fill available space\n- You're working with navigation bars, button groups, or centering content\n\n**Use CSS Grid when:**\n- You need to control layout in two dimensions (rows AND columns)\n- You want to create complex layouts with precise positioning\n- You're building page layouts, card grids, or any structured content\n\n**Example - Flexbox for navigation:**\n```css\n.nav {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n}\n```\n\n**Example - Grid for page layout:**\n```css\n.page-layout {\n  display: grid;\n  grid-template-areas: \n    'header header header'\n    'sidebar main aside'\n    'footer footer footer';\n  grid-template-columns: 200px 1fr 200px;\n}\n```",
-        author: "css_master",
-        votes: 18,
-        datePosted: "20 hours ago",
-        isAccepted: true
-      },
-      {
-        id: 2,
-        content: "They work great together! You can use Grid for the overall page structure and Flexbox for component-level layouts:\n\n```css\n/* Grid for main layout */\n.container {\n  display: grid;\n  grid-template-columns: 1fr 3fr;\n  gap: 20px;\n}\n\n/* Flexbox for card content */\n.card {\n  display: flex;\n  flex-direction: column;\n  justify-content: space-between;\n}\n\n.card-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n}\n```\n\nThis gives you the best of both worlds - Grid's powerful 2D layout capabilities with Flexbox's flexible item alignment.",
-        author: "layout_guru",
-        votes: 12,
-        datePosted: "18 hours ago",
-        isAccepted: false
-      }
-    ],
-    4: [
-      {
-        id: 1,
-        content: "For PostgreSQL optimization on large datasets, here's my checklist:\n\n**1. Index Strategy:**\n```sql\n-- Composite indexes for common query patterns\nCREATE INDEX idx_users_status_created ON users(status, created_at);\n\n-- Partial indexes for frequent WHERE conditions\nCREATE INDEX idx_active_users ON users(email) WHERE status = 'active';\n\n-- Use EXPLAIN ANALYZE to verify index usage\nEXPLAIN ANALYZE SELECT * FROM users WHERE status = 'active' AND created_at > '2023-01-01';\n```\n\n**2. Query Optimization:**\n- Use LIMIT for pagination instead of OFFSET for large datasets\n- Consider window functions for complex aggregations\n- Use EXISTS instead of IN for subqueries\n- Avoid SELECT * in production queries\n\n**3. Database Configuration:**\n```sql\n-- Adjust work_mem for sort operations\nSET work_mem = '256MB';\n\n-- Increase shared_buffers for better caching\n-- In postgresql.conf: shared_buffers = 25% of RAM\n```",
-        author: "postgres_expert",
-        votes: 25,
-        datePosted: "2 days ago",
-        isAccepted: true
-      },
-      {
-        id: 2,
-        content: "Don't forget about partitioning for very large tables:\n\n```sql\n-- Range partitioning by date\nCREATE TABLE logs (\n    id BIGSERIAL,\n    created_at TIMESTAMP,\n    message TEXT\n) PARTITION BY RANGE (created_at);\n\nCREATE TABLE logs_2024_01 PARTITION OF logs\n    FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');\n\nCREATE TABLE logs_2024_02 PARTITION OF logs\n    FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');\n```\n\nThis can dramatically improve query performance when you're frequently filtering by date ranges.",
-        author: "db_architect",
-        votes: 15,
-        datePosted: "1 day ago",
-        isAccepted: false
-      }
-    ]
   };
 
-  const currentQuestion = dummyQuestions.find(q => q.id === questionId);
-  const currentAnswers = dummyAnswers[questionId] || [];
+  const handleSubmitAnswer = async () => {
+    if (!isAuthenticated) {
+      alert('Please login to submit an answer');
+      return;
+    }
 
-  const handleSubmitAnswer = () => {
-    if (newAnswer.trim()) {
-      // In a real app, this would make an API call
-      const answerPreview = newAnswer.length > 100 ? newAnswer.substring(0, 100) + '...' : newAnswer;
-      alert(`✅ Answer submitted successfully!\n\nPreview: "${answerPreview}"`);
-      console.log('New answer submitted:', {
+    if (!newAnswer.trim()) {
+      alert('Please enter an answer before submitting.');
+      return;
+    }
+
+    setSubmittingAnswer(true);
+    try {
+      const result = await answerService.createAnswer({
         questionId,
-        content: newAnswer,
-        timestamp: new Date().toISOString(),
-        author: 'current_user' // In real app, this would come from auth
+        content: newAnswer.trim()
       });
-      setNewAnswer('');
-      setShowAnswerForm(false);
-    } else {
-      alert('❌ Please enter an answer before submitting.');
+
+      if (result.success) {
+        setNewAnswer('');
+        setShowAnswerForm(false);
+        loadQuestionAndAnswers(); // Reload to show new answer
+
+        // Show success message
+        const successDiv = document.createElement('div');
+        successDiv.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        successDiv.innerHTML = '✓ Answer submitted successfully!';
+        document.body.appendChild(successDiv);
+        setTimeout(() => document.body.removeChild(successDiv), 3000);
+      } else {
+        alert('Failed to submit answer. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error submitting answer:', err);
+      alert('Failed to submit answer. Please try again.');
+    } finally {
+      setSubmittingAnswer(false);
     }
   };
 
-  const handleVote = (type: 'question' | 'answer', id: number, voteType: 'up' | 'down') => {
-    if (type === 'question') {
-      const currentVote = voteState.questionVote;
-      const currentVotes = questionVotes[id] || currentQuestion?.votes || 0;
-      
-      let newVoteCount = currentVotes;
-      let newVote: 'up' | 'down' | null = voteType;
-      
-      // If clicking the same vote, remove it
-      if (currentVote === voteType) {
-        newVote = null;
-        newVoteCount = currentVotes - (voteType === 'up' ? 1 : -1);
-      } else {
-        // If switching vote or voting for first time
-        if (currentVote) {
-          // Remove previous vote and add new one
-          newVoteCount = currentVotes - (currentVote === 'up' ? 1 : -1) + (voteType === 'up' ? 1 : -1);
+  const handleVote = async (type: 'question' | 'answer', id: number, voteType: 'up' | 'down') => {
+    if (!isAuthenticated) {
+      alert('Please login to vote');
+      return;
+    }
+
+    try {
+      const result = await voteService.castVote({
+        targetId: id,
+        targetType: type,
+        voteType: voteType === 'up' ? 'upvote' : 'downvote'
+      });
+
+      if (result.success) {
+        // Update local state based on vote result
+        if (type === 'question') {
+          const currentVote = voteState.questionVote;
+          let newVote: 'up' | 'down' | null = voteType;
+
+          if (currentVote === voteType) {
+            newVote = null; // Remove vote if clicking same vote
+          }
+
+          setVoteState(prev => ({ ...prev, questionVote: newVote }));
+
+          // Update question vote count
+          setCurrentQuestion(prev => {
+            if (!prev) return prev;
+            let newVoteCount = prev.votes + result.voteChange;
+            return { ...prev, votes: newVoteCount };
+          });
         } else {
-          // First vote
-          newVoteCount = currentVotes + (voteType === 'up' ? 1 : -1);
+          const currentVote = voteState.answerVotes[id];
+          let newVote: 'up' | 'down' | null = voteType;
+
+          if (currentVote === voteType) {
+            newVote = null; // Remove vote if clicking same vote
+          }
+
+          setVoteState(prev => ({
+            ...prev,
+            answerVotes: { ...prev.answerVotes, [id]: newVote }
+          }));
+
+          // Update answer vote count
+          setAnswers(prev => prev.map(answer =>
+            answer.id === id ? { ...answer, votes: answer.votes + result.voteChange } : answer
+          ));
         }
       }
-      
-      setVoteState(prev => ({ ...prev, questionVote: newVote }));
-      setQuestionVotes(prev => ({ ...prev, [id]: newVoteCount }));
-    } else {
-      const currentVote = voteState.answerVotes[id];
-      const answer = currentAnswers.find(a => a.id === id);
-      const currentVotes = answerVoteCounts[id] || answer?.votes || 0;
-      
-      let newVoteCount = currentVotes;
-      let newVote: 'up' | 'down' | null = voteType;
-      
-      if (currentVote === voteType) {
-        newVote = null;
-        newVoteCount = currentVotes - (voteType === 'up' ? 1 : -1);
-      } else {
-        if (currentVote) {
-          newVoteCount = currentVotes - (currentVote === 'up' ? 1 : -1) + (voteType === 'up' ? 1 : -1);
-        } else {
-          newVoteCount = currentVotes + (voteType === 'up' ? 1 : -1);
-        }
-      }
-      
-      setVoteState(prev => ({
-        ...prev,
-        answerVotes: { ...prev.answerVotes, [id]: newVote }
-      }));
-      setAnswerVoteCounts(prev => ({ ...prev, [id]: newVoteCount }));
+    } catch (err) {
+      console.error('Error voting:', err);
+      alert('Failed to vote. Please try again.');
     }
   };
 
@@ -275,12 +192,45 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
     return colors[tag as keyof typeof colors] || colors.default;
   };
 
-  if (!currentQuestion) {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor(diff / (1000 * 60));
+
+    if (days > 0) return `${days} days ago`;
+    if (hours > 0) return `${hours} hours ago`;
+    if (minutes > 0) return `${minutes} minutes ago`;
+    return 'Just now';
+  };
+
+  const parseTagsString = (tagsString: string): string[] => {
+    if (!tagsString) return [];
+    return tagsString.split(',').map(tag => tag.trim()).filter(tag => tag);
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="flex justify-center items-center min-h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !currentQuestion) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Question Not Found</h1>
-          <p className="text-gray-600 mb-6">The question you're looking for doesn't exist.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            {error ? 'Error Loading Question' : 'Question Not Found'}
+          </h1>
+          <p className="text-gray-600 mb-6">
+            {error || "The question you're looking for doesn't exist."}
+          </p>
           <button
             onClick={() => navigate('home')}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
@@ -312,29 +262,26 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
           <div className="flex flex-col items-center space-y-2">
             <button
               onClick={() => handleVote('question', currentQuestion.id, 'up')}
-              className={`p-2 rounded-full transition-colors ${
-                voteState.questionVote === 'up'
+              className={`p-2 rounded-full transition-colors ${voteState.questionVote === 'up'
                   ? 'bg-green-100 text-green-600'
                   : 'hover:bg-gray-100 text-gray-400'
-              }`}
+                }`}
             >
               <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
               </svg>
             </button>
-            <span className={`text-2xl font-bold ${
-              voteState.questionVote === 'up' ? 'text-green-600' : 
-              voteState.questionVote === 'down' ? 'text-red-600' : 'text-gray-700'
-            }`}>
-              {questionVotes[currentQuestion.id] || currentQuestion.votes}
+            <span className={`text-2xl font-bold ${voteState.questionVote === 'up' ? 'text-green-600' :
+                voteState.questionVote === 'down' ? 'text-red-600' : 'text-gray-700'
+              }`}>
+              {currentQuestion.votes}
             </span>
             <button
               onClick={() => handleVote('question', currentQuestion.id, 'down')}
-              className={`p-2 rounded-full transition-colors ${
-                voteState.questionVote === 'down'
+              className={`p-2 rounded-full transition-colors ${voteState.questionVote === 'down'
                   ? 'bg-red-100 text-red-600'
                   : 'hover:bg-gray-100 text-gray-400'
-              }`}
+                }`}
             >
               <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -350,16 +297,16 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
             <div className="flex items-center gap-6 text-sm text-gray-600 mb-6">
               <div className="flex items-center gap-1">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                 </svg>
-                <span className="font-medium">{currentQuestion.answers} answers</span>
+                <span className="font-medium">{currentQuestion.answer_count} answers</span>
               </div>
               <div className="flex items-center gap-1">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                   <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                 </svg>
-                <span className="font-medium">{currentQuestion.views} views</span>
+                <span className="font-medium">{currentQuestion.view_count} views</span>
               </div>
             </div>
 
@@ -367,14 +314,14 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
             <div className="mb-6">
               <div className="prose max-w-none">
                 <p className="text-gray-700 text-lg leading-relaxed whitespace-pre-line">
-                  {currentQuestion.fullContent}
+                  {currentQuestion.description}
                 </p>
               </div>
             </div>
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2 mb-6">
-              {currentQuestion.tags.map((tag, index) => (
+              {parseTagsString(currentQuestion.tags).map((tag, index) => (
                 <span
                   key={index}
                   className={`px-3 py-1 rounded-full text-sm font-medium ${getTagColor(tag)}`}
@@ -397,7 +344,7 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
                   <span className="font-medium text-blue-600">{currentQuestion.author}</span>
                 </div>
                 <span>•</span>
-                <span>{currentQuestion.datePosted}</span>
+                <span>{formatDate(currentQuestion.created_at)}</span>
               </div>
             </div>
           </div>
@@ -408,7 +355,7 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
-            {currentAnswers.length} Answer{currentAnswers.length !== 1 ? 's' : ''}
+            {answers.length} Answer{answers.length !== 1 ? 's' : ''}
           </h2>
           <button
             onClick={() => setShowAnswerForm(!showAnswerForm)}
@@ -421,15 +368,44 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
           </button>
         </div>
 
+        {/* Answer Form */}
+        {showAnswerForm && (
+          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Your Answer</h3>
+            {!isAuthenticated && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
+                <p className="text-yellow-800">Please login to submit an answer.</p>
+              </div>
+            )}
+            <div className="mb-4">
+              <textarea
+                value={newAnswer}
+                onChange={(e) => setNewAnswer(e.target.value)}
+                className="w-full h-32 p-4 border border-gray-300 rounded-lg resize-vertical focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Write your answer here..."
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={handleSubmitAnswer}
+                disabled={submittingAnswer || !isAuthenticated}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submittingAnswer ? 'Submitting...' : 'Submit Answer'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Answers List */}
         <div className="space-y-6">
-          {currentAnswers.map((answer) => (
+          {answers.map((answer) => (
             <div
               key={answer.id}
-              className={`bg-white border rounded-lg shadow-sm p-6 ${
-                answer.isAccepted ? 'border-green-200 bg-green-50' : 'border-gray-200'
-              }`}
+              className={`bg-white border rounded-lg shadow-sm p-6 ${answer.is_accepted ? 'border-green-200 bg-green-50' : 'border-gray-200'
+                }`}
             >
-              {answer.isAccepted && (
+              {answer.is_accepted && (
                 <div className="flex items-center gap-2 mb-4">
                   <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -443,29 +419,26 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
                 <div className="flex flex-col items-center space-y-2">
                   <button
                     onClick={() => handleVote('answer', answer.id, 'up')}
-                    className={`p-2 rounded-full transition-colors ${
-                      voteState.answerVotes[answer.id] === 'up'
+                    className={`p-2 rounded-full transition-colors ${voteState.answerVotes[answer.id] === 'up'
                         ? 'bg-green-100 text-green-600'
                         : 'hover:bg-gray-100 text-gray-400'
-                    }`}
+                      }`}
                   >
                     <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
                     </svg>
                   </button>
-                  <span className={`text-lg font-bold ${
-                    voteState.answerVotes[answer.id] === 'up' ? 'text-green-600' : 
-                    voteState.answerVotes[answer.id] === 'down' ? 'text-red-600' : 'text-gray-700'
-                  }`}>
-                    {answerVoteCounts[answer.id] || answer.votes}
+                  <span className={`text-lg font-bold ${voteState.answerVotes[answer.id] === 'up' ? 'text-green-600' :
+                      voteState.answerVotes[answer.id] === 'down' ? 'text-red-600' : 'text-gray-700'
+                    }`}>
+                    {answer.votes}
                   </span>
                   <button
                     onClick={() => handleVote('answer', answer.id, 'down')}
-                    className={`p-2 rounded-full transition-colors ${
-                      voteState.answerVotes[answer.id] === 'down'
+                    className={`p-2 rounded-full transition-colors ${voteState.answerVotes[answer.id] === 'down'
                         ? 'bg-red-100 text-red-600'
                         : 'hover:bg-gray-100 text-gray-400'
-                    }`}
+                      }`}
                   >
                     <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -494,34 +467,13 @@ const QuestionDetail: React.FC<Props> = ({ questionId, navigate }) => {
                         <span className="font-medium text-purple-600">{answer.author}</span>
                       </div>
                       <span>•</span>
-                      <span>{answer.datePosted}</span>
+                      <span>{formatDate(answer.created_at)}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Answer Form */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Your Answer</h3>
-        <div className="mb-4">
-          <textarea
-            value={newAnswer}
-            onChange={(e) => setNewAnswer(e.target.value)}
-            className="w-full h-32 p-4 border border-gray-300 rounded-lg resize-vertical focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Write your answer here..."
-          />
-        </div>
-        <div className="flex justify-end">
-          <button
-            onClick={handleSubmitAnswer}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-          >
-            Submit Answer
-          </button>
         </div>
       </div>
     </div>

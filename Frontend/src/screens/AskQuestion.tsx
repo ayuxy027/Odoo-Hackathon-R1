@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { questionService } from '../services/questionService';
 
 interface Props {
   navigate: (screen: 'home') => void;
@@ -9,48 +10,51 @@ const AskQuestion: React.FC<Props> = ({ navigate }) => {
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (title.trim() && description.trim()) {
-      setIsSubmitting(true);
+    if (!title.trim() || !description.trim()) {
+      setError('Please fill in both title and description');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log({ title, description, tags });
-      
-      // Show success message
-      const successDiv = document.createElement('div');
-      successDiv.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full';
-      successDiv.innerHTML = '✓ Question submitted successfully!';
-      document.body.appendChild(successDiv);
-      
-      setTimeout(() => {
-        successDiv.classList.remove('translate-x-full');
-      }, 100);
-      
-      setTimeout(() => {
-        successDiv.classList.add('translate-x-full');
-        setTimeout(() => document.body.removeChild(successDiv), 300);
-      }, 2000);
-      
+      const result = await questionService.createQuestion({
+        title: title.trim(),
+        description: description.trim(),
+        tags: tagsArray
+      });
+
+      if (result.success) {
+        // Show success message
+        const successDiv = document.createElement('div');
+        successDiv.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full';
+        successDiv.innerHTML = '✓ Question submitted successfully!';
+        document.body.appendChild(successDiv);
+        
+        setTimeout(() => {
+          successDiv.classList.remove('translate-x-full');
+        }, 100);
+        
+        setTimeout(() => {
+          successDiv.classList.add('translate-x-full');
+          setTimeout(() => document.body.removeChild(successDiv), 300);
+        }, 2000);
+        
+        navigate('home');
+      } else {
+        setError('Failed to create question. Please try again.');
+      }
+    } catch (err) {
+      setError('Failed to create question. Please check your connection and try again.');
+      console.error('Error creating question:', err);
+    } finally {
       setIsSubmitting(false);
-      navigate('home');
-    } else {
-      // Show error message
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full';
-      errorDiv.innerHTML = '⚠ Please fill in both title and description';
-      document.body.appendChild(errorDiv);
-      
-      setTimeout(() => {
-        errorDiv.classList.remove('translate-x-full');
-      }, 100);
-      
-      setTimeout(() => {
-        errorDiv.classList.add('translate-x-full');
-        setTimeout(() => document.body.removeChild(errorDiv), 300);
-      }, 2000);
     }
   };
 
@@ -92,6 +96,22 @@ const AskQuestion: React.FC<Props> = ({ navigate }) => {
           <div className="bg-gradient-to-r from-blue-500 to-purple-500 h-2"></div>
           
           <div className="p-8">
+            {/* Error Display */}
+            {error && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">
+                      {error}
+                    </h3>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Title Input */}
             <div className="mb-6">
               <label className="block text-gray-700 font-semibold mb-2 text-lg">
