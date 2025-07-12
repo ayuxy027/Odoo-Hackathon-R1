@@ -76,24 +76,23 @@ const Home: React.FC<Props> = ({ navigate, selectQuestion }) => {
   };
 
   const getTagColor = (tag: string): string => {
-    const colors = {
-      'react': 'bg-blue-100 text-blue-800',
-      'typescript': 'bg-blue-100 text-blue-800',
-      'javascript': 'bg-yellow-100 text-yellow-800',
-      'css': 'bg-pink-100 text-pink-800',
-      'html': 'bg-orange-100 text-orange-800',
-      'python': 'bg-green-100 text-green-800',
-      'postgresql': 'bg-indigo-100 text-indigo-800',
-      'database': 'bg-purple-100 text-purple-800',
-      'api': 'bg-red-100 text-red-800',
-      'default': 'bg-gray-100 text-gray-800'
+    const colors: Record<string, string> = {
+      react: 'bg-blue-100 text-blue-800',
+      typescript: 'bg-blue-100 text-blue-800',
+      javascript: 'bg-yellow-100 text-yellow-800',
+      css: 'bg-pink-100 text-pink-800',
+      html: 'bg-orange-100 text-orange-800',
+      python: 'bg-green-100 text-green-800',
+      postgresql: 'bg-indigo-100 text-indigo-800',
+      database: 'bg-purple-100 text-purple-800',
+      api: 'bg-red-100 text-red-800',
     };
-    return colors[tag as keyof typeof colors] || colors.default;
+    return colors[tag] || 'bg-gray-100 text-gray-800';
   };
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      {/* Header */}
+      {/* Top Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Top Questions</h1>
@@ -115,6 +114,7 @@ const Home: React.FC<Props> = ({ navigate, selectQuestion }) => {
             onClick={() => handleQuestionClick(question.id)}
             className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
           >
+            {/* Title and Accepted Icon */}
             <div className="flex justify-between items-start mb-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
@@ -122,13 +122,13 @@ const Home: React.FC<Props> = ({ navigate, selectQuestion }) => {
                     {question.title}
                   </h2>
                   {question.hasAcceptedAnswer && (
-                    <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
                   )}
                 </div>
                 <p className="text-gray-600 mb-3 line-clamp-2">{question.description}</p>
-                
+
                 {/* Tags */}
                 <div className="flex flex-wrap gap-2 mb-3">
                   {question.tags.map((tag, index) => (
@@ -143,35 +143,13 @@ const Home: React.FC<Props> = ({ navigate, selectQuestion }) => {
               </div>
             </div>
 
-            {/* Question Stats */}
+            {/* Meta Data */}
             <div className="flex items-center justify-between text-sm text-gray-500">
               <div className="flex items-center gap-6">
-                <div className="flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
-                  </svg>
-                  <span className="font-medium">{question.votes}</span>
-                  <span>votes</span>
-                </div>
-                
-                <div className="flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                  </svg>
-                  <span className="font-medium">{question.answers}</span>
-                  <span>answers</span>
-                </div>
-                
-                <div className="flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                  </svg>
-                  <span className="font-medium">{question.views}</span>
-                  <span>views</span>
-                </div>
+                <span>{question.votes} votes</span>
+                <span>{question.answers} answers</span>
+                <span>{question.views} views</span>
               </div>
-              
               <div className="flex items-center gap-2">
                 <span>asked by</span>
                 <span className="font-medium text-blue-600">{question.author}</span>
