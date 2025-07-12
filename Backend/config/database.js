@@ -42,6 +42,14 @@ class DatabaseManager {
         )
       `).run();
 
+      // Ensure role column exists for legacy DBs
+      const userCols = this.db.prepare("PRAGMA table_info(users)").all();
+      const hasRole = userCols.some(c => c.name === 'role');
+      if (!hasRole) {
+        console.log('🔄 Migrating users table: adding role column');
+        this.db.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'").run();
+      }
+
       // Questions table
       this.db.prepare(`
         CREATE TABLE IF NOT EXISTS questions (
@@ -136,19 +144,20 @@ class DatabaseManager {
     try {
       console.log('🌱 Seeding initial data...');
 
-      // Check if users already exist
-      const userCount = this.db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-      
-      if (userCount === 0) {
-        // Insert default users as per PRD
-        const insertUser = this.db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)');
-        
-        insertUser.run('guest', 'guest123', 'guest');
-        insertUser.run('user', 'user123', 'user');
-        insertUser.run('admin', 'admin123', 'admin');
-        
-        console.log('✅ Default users created');
-      }
+      // Insert / ensure default users (guest, user, admin)
+      const defaults = [
+        { u: 'guest', p: 'guest123', r: 'guest' },
+        { u: 'user', p: 'user123', r: 'user' },
+        { u: 'admin', p: 'admin123', r: 'admin' },
+      ];
+      const getUser = this.db.prepare('SELECT id FROM users WHERE username = ?');
+      const insertUserStmt = this.db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)');
+      defaults.forEach(({ u, p, r }) => {
+        const found = getUser.get(u);
+        if (!found) {
+          insertUserStmt.run(u, p, r);
+        }
+      });
 
       // Add some sample tags
       const tagCount = this.db.prepare('SELECT COUNT(*) as count FROM tags').get().count;

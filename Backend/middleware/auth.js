@@ -62,13 +62,24 @@ class AuthMiddleware {
             role: user.role
           };
           logger.logAuth('optional_login', username, { role: user.role });
+        } else {
+          // If credentials provided but wrong, reject with 401
+          logger.warn('Optional auth failed: Invalid credentials', { username });
+          return res.status(401).json({
+            success: false,
+            message: 'Invalid username or password'
+          });
         }
       }
+      // If no credentials provided, continue as anonymous user
       
       next();
     } catch (error) {
       logger.error('Optional authentication middleware error:', error);
-      next(); // Continue without authentication
+      return res.status(500).json({
+        success: false,
+        message: 'Authentication error'
+      });
     }
   }
 
