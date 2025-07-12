@@ -3,7 +3,7 @@ import Home from './screens/Home';
 import AskQuestion from './screens/ AskQuestion';
 import QuestionDetail from './screens/QuestionDetail';
 
-// Types
+// Types for screen identifiers
 type Screen = 'home' | 'ask' | 'questionDetail';
 
 const App: React.FC = () => {
@@ -26,6 +26,7 @@ const App: React.FC = () => {
         >
           StackIt
         </h1>
+
         <div className="space-x-4 flex items-center">
           <button
             onClick={() => navigateTo('ask')}
@@ -33,11 +34,15 @@ const App: React.FC = () => {
           >
             Ask
           </button>
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 text-gray-600 hover:text-blue-600"
-          >
-            🛎️
+
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 text-gray-600 hover:text-blue-600"
+            >
+              🛎️
+            </button>
+
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-64 bg-white shadow-lg border rounded p-4 z-50">
                 <h2 className="font-semibold mb-2">Notifications</h2>
@@ -48,7 +53,7 @@ const App: React.FC = () => {
                 </ul>
               </div>
             )}
-          </button>
+          </div>
         </div>
       </header>
 
@@ -63,11 +68,16 @@ const App: React.FC = () => {
             }}
           />
         )}
+
         {currentScreen === 'ask' && (
           <AskQuestion navigate={navigateTo} />
         )}
+
         {currentScreen === 'questionDetail' && selectedQuestionId !== null && (
-          <QuestionDetail questionId={selectedQuestionId} navigate={navigateTo} />
+          <QuestionDetail
+            questionId={selectedQuestionId}
+            navigate={navigateTo}
+          />
         )}
       </main>
     </div>
