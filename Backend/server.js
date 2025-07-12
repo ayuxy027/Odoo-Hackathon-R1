@@ -1,57 +1,28 @@
 const express = require('express');
 const cors = require('cors');
-const db = require('./db');
+const routes = require('./routes');
+const RequestLogger = require('./middleware/requestLogger');
+const appConfig = require('./config/app');
 
 const app = express();
-app.use(cors());
+
+// Middlewares
+app.use(cors({ origin: appConfig.get('clientUrl'), credentials: true }));
 app.use(express.json());
+app.use(RequestLogger.logRequests);
 
-// Add question API
-app.post('/ask', (req, res) => {
-  const { title, description, tags, userId } = req.body;
-  const stmt = db.prepare(
-    'INSERT INTO questions (title, description, tags, user_id) VALUES (?, ?, ?, ?)'
-  );
-  const info = stmt.run(title, description, tags, userId);
-  res.json({ success: true, questionId: info.lastInsertRowid });
+// API Routes
+app.use('/api', routes);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'Route not found' });
 });
 
-// Get all questions with user information
-app.get('/questions', (req, res) => {
-  const rows = db.prepare(`
-    SELECT 
-      q.id,
-      q.title,
-      q.description,
-      q.tags,
-      q.user_id,
-      u.username
-    FROM questions q
-    LEFT JOIN users u ON q.user_id = u.id
-    ORDER BY q.id DESC
-  `).all();
-  
-  res.json({
-    success: true,
-    count: rows.length,
-    questions: rows
-  });
-});
+// Error handler
+app.use(RequestLogger.logErrors);
 
-// Get users (for testing)
-app.get('/users', (req, res) => {
-  const rows = db.prepare('SELECT id, username FROM users').all();
-  res.json({
-    success: true,
-    users: rows
-  });
-});
-
-app.listen(3000, () => {
-  console.log('🚀 Team Rookies API Server started!');
-  console.log('📍 Server running at http://localhost:3000');
-  console.log('🔗 Test routes:');
-  console.log('   GET  /questions - View all questions');
-  console.log('   GET  /users - View all users');
-  console.log('   POST /ask - Create new question');
+const PORT = appConfig.get('port');
+app.listen(PORT, () => {
+  console.log(`🚀 StackIt backend running at http://localhost:${PORT}`);
 });
