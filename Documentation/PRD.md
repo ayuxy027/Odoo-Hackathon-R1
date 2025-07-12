@@ -46,7 +46,10 @@ StackIt will allow users to post questions, submit formatted answers, vote, and 
 |-----------|-------------|
 | Guest     | Can browse questions and answers |
 | Registered User | Can post, vote, tag, and answer questions |
-| Moderator/Admin | (Optional) Can moderate content |
+| Moderator/Admin | Can moderate content|
+
+For credntials just have username for guest as guest and password as guest123
+same for admin as admin and password as admin123 and for registered user as user and password as user123
 
 ---
 
