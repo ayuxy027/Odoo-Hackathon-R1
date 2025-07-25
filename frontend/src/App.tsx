@@ -1,7 +1,31 @@
-const App = () => {
-  return (
-    <div className="text-3xl font-bold bg-red-500">App</div>
-  )
+import { useState, useEffect } from "react";
+
+interface DataItem {
+  name: string;
+  id: number;
 }
 
-export default App
+// Wrap the code in a functional component
+const App = () => {
+  const [data, setData] = useState<DataItem[]>([]);
+
+  useEffect(() => {
+    fetch('http://localhost:3000/data')
+      .then(res => res.json())
+      .then((apiData: DataItem[]) => setData(apiData));
+  }, []);
+
+  return (
+    <div>
+      <h1>Data</h1>
+      <ul>
+        {data.map((item) => (
+          <li key={item.id}>{item.name}</li> 
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Export the component
+export default App;
